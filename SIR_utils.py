@@ -75,11 +75,12 @@ def compute_number_infectious(current_infected, averaging_range):
         using a window of length averaging_range
 
     """
+    
     averager = np.ones(averaging_range) / averaging_range
-    N = len(current_infected)
     
     # build number of infected individuals
-    infected = current_infected[1:] - current_infected[:-1]
+    infected = current_infected[1:] - current_infected[:-1]    
+    
     infected_avg = np.convolve(averager, infected, mode="same")
     infected_avg_good = np.convolve(averager, infected, mode="valid")
     
@@ -96,7 +97,40 @@ def compute_number_infectious(current_infected, averaging_range):
 def compute_sir_coefs(times, susceptible, infected, removed, 
                       a_guess=1, b_guess=1, 
                       ode_options={}, opt_options={}):
-    
+    """
+    Compute the coefficients (a, b) for the SIR model 
+    a corresponds to infectivity / virilance, 
+    b corresponds to removal rate from infectious population 
+        (e.g. getting tested and quarentining)
+        
+    Parameters
+    ----------
+    times : array of length n
+        time nodes.
+    susceptible : array of length n
+        susceptible population at time nodes.
+    infected : array of length n
+        infectious population at time nodes.
+    removed : array of length n
+        removed population at time nodes.
+    a_guess : float > 0, optional
+        initial guess for a. The default is 1.
+    b_guess : float > 0, optional
+        initial guess for b. The default is 1.
+    ode_options : dictionary, optional
+        options to pass to the ODE solver. The default is {} (no options).
+        See scipy.integrate.solve_ivp for more details
+    opt_options : dictionary, optional
+        options to pass to the least squares solver. The default is {} 
+        (no options).
+        See scipy.optimize.least_squares for more details
+
+    Returns
+    -------
+    opt_res : array of length 2 of floats
+        opt_res = [a_fitted, b_fitted].
+
+    """
     # store true values in one array
     truth = np.zeros([len(times), 3])
     truth[:, 0] = susceptible
@@ -123,7 +157,43 @@ def compute_sir_coefs(times, susceptible, infected, removed,
 def moving_averages_fits(times, sus, inf, rem, window=14, 
                          a_guess=1, b_guess=1, 
                          ode_options={}, opt_options={}):
+    """
+    Wrapper for performing multiple fits on a time series
     
+    This method uses the previous values for a and b as 
+    initial guess for the next fitting
+
+    Parameters
+    ----------
+    times : array of length n
+        time nodes.
+    susceptible : array of length n
+        susceptible population at time nodes.
+    infected : array of length n
+        infectious population at time nodes.
+    removed : array of length n
+        removed population at time nodes.
+    window : int > 0, optional
+        window averaging size for fitting. The default is 14.
+    a_guess : float > 0, optional
+        initial guess for a. The default is 1.
+    b_guess : float > 0, optional
+        initial guess for b. The default is 1.
+    ode_options : dictionary, optional
+        options to pass to the ODE solver. The default is {} (no options).
+        See scipy.integrate.solve_ivp for more details
+    opt_options : dictionary, optional
+        options to pass to the least squares solver. The default is {} 
+        (no options).
+        See scipy.optimize.least_squares for more details
+
+    Returns
+    -------
+    fitting_values : m x 2 array of floats
+        the first column corresponds to the fitted a values,
+        the second column corresponds to the fitted b values.
+
+    """
     a_prev = a_guess
     b_prev = b_guess
     
