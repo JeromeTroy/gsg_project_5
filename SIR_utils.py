@@ -11,7 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from scipy.integrate import solve_ivp
-from scipy.optimize import curve_fit, least_squares
+from scipy.optimize import curve_fit, least_squares, minimize
 
 def sir_ode(t, x, a, b):
     """
@@ -142,16 +142,24 @@ def compute_sir_coefs(times, susceptible, infected, removed,
     # run the ode solver
     test_fun = lambda t, a, b: solve_ivp(sir_ode, [0, times[-1]], init_cond, 
                                         t_eval=t, args=(a, b), 
-                                        method="LSODA")
+                                        method="LSODA", **ode_options)
     
     error = lambda coef: test_fun(times, coef[0], coef[1]).y[2, :] - removed
     
     
     
     #opt_res = curve_fit(test_fun, times, removed)
-    opt_res = least_squares(error, (a_guess, b_guess), bounds=(0, np.inf))
+    #opt_res = least_squares(error, (a_guess, b_guess), **opt_options)
+    opt_res = minimize(lambda coef: np.linalg.norm(error(coef), 2), 
+                       (a_guess, b_guess),
+                       **opt_options)
     return opt_res
         
+def get_a_b_guesses(sus, inf, rem):
+    
+    a_guess = -np.mean((sus[1:] - sus[:-1]) / (inf[1:] * sus[1:]))
+    b_guess = np.mean((rem[1:] - rem[:-1]) / inf[1:])
+    return a_guess, b_guess
     
 def moving_averages_fits(times, sus, inf, rem, window=14, 
                          a_guess=1, b_guess=1, 
@@ -203,9 +211,12 @@ def moving_averages_fits(times, sus, inf, rem, window=14,
         # window for indexing
         start = window * j
         stop = start + window
+        a_guess, b_guess = get_a_b_guesses(sus[start:stop], 
+                                           inf[start:stop], 
+                                           rem[start:stop])
         opt_res = compute_sir_coefs(times[start:stop], sus[start:stop], 
                                     inf[start:stop], rem[start:stop], 
-                                    a_guess=a_prev, b_guess=b_prev, 
+                                    a_guess=a_guess, b_guess=b_guess, 
                                     ode_options=ode_options, 
                                     opt_options=opt_options)
         
@@ -259,7 +270,7 @@ if __name__ == "__main__":
     plt.plot(infectious, infectious_roc, "*-")
     plt.show()
     start = 0
-    stop = 50
+    stop = 14
     pop = 8e7
     rem = np.convolve(np.ones(averaging_range), 
                       np.array(dataframe[keys_to_use[1]]), 
@@ -278,7 +289,8 @@ if __name__ == "__main__":
     
     res = compute_sir_coefs(times[start:stop], sus[start:stop], 
                                 infectious[start:stop], rem[start:stop], 
-                                a_guess=0.01, b_guess=0.01)
+                                a_guess=1.25e-8, b_guess=0.68, 
+                                opt_options={"method": "TNC"})
         
     print(res)
     sol = solve_ivp(sir_ode, [times[start], times[stop]], 
@@ -289,7 +301,8 @@ if __name__ == "__main__":
     plt.plot(times[start:stop], rem[start:stop], "*")
     plt.show()
     
-    fitting = moving_averages_fits(times, sus, infectious, rem, window=30)
+    fitting = moving_averages_fits(times, sus, infectious, rem, window=14, 
+                                   a_guess=1.25e-8, b_guess=0.68)
     
     plt.plot(fitting[:, 0])
     plt.show()
