@@ -120,7 +120,36 @@ def compute_sir_coefs(times, susceptible, infected, removed,
     return opt_res
         
     
-                                 
+def moving_averages_fits(times, sus, inf, rem, window=14, 
+                         a_guess=1, b_guess=1, 
+                         ode_options={}, opt_options={}):
+    
+    a_prev = a_guess
+    b_prev = b_guess
+    
+    num_fits = int(len(times) / window)
+    fitting_values = np.zeros([num_fits, 2])
+    
+    for j in range(num_fits):
+        # window for indexing
+        start = window * j
+        stop = start + window
+        opt_res = compute_sir_coefs(times[start:stop], sus[start:stop], 
+                                    inf[start:stop], rem[start:stop], 
+                                    a_guess=a_prev, b_guess=b_prev, 
+                                    ode_options=ode_options, 
+                                    opt_options=opt_options)
+        
+        # update a, b guesses
+        a_prev, b_prev = opt_res.x
+        # update array of solutions
+        fitting_values[j, :] = opt_res.x
+        
+    return fitting_values
+        
+        
+    
+    
     
     
 
@@ -189,6 +218,13 @@ if __name__ == "__main__":
     
     plt.plot(sol.t, sol.y[2, :], "--")
     plt.plot(times[start:stop], rem[start:stop], "*")
+    plt.show()
+    
+    fitting = moving_averages_fits(times, sus, infectious, rem, window=30)
+    
+    plt.plot(fitting[:, 0])
+    plt.show()
+    plt.plot(fitting[:, 1])
     plt.show()
 
     
